@@ -1,0 +1,71 @@
+#include "includes.h"
+
+int main(int argc, char **argv) {
+    int rv = 0;
+    char *rm = "Success\n";
+
+    DataSample data[MAX_SAMPLES];
+    int n_samples = 0;
+
+    IIRFilter filter;
+    double fs, accuracy_percent;
+
+    close_existing_gnuplot_windows();
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <data_file.csv>\n", argv[0]);
+        rv =  EXIT_FAILURE;
+        rm = "Arguments\n"; 
+    }
+
+    if (!rv && !read_csv(argv[1], data, &n_samples)) {
+        fprintf(stderr, "Error reading CSV file.\n");
+        rv = EXIT_FAILURE;
+        rm = "Wrong input\n";
+    }
+
+    if (!rv && n_samples == 0) {
+        fprintf(stderr, "No valid samples found.\n");
+        rv = EXIT_FAILURE;
+        rm = "No samples\n";
+    }
+
+    if(!rv) {
+      printf("Read %d samples successfully.\n", n_samples);
+
+      remove_dc(data, n_samples);
+
+      if(!calculate_sampling_rate(data, n_samples, &fs, &accuracy_percent)) {
+        printf("Calculated Sampling Rate = %lf Hz, Accuracy = ±%lf%%\n", fs, accuracy_percent);
+      }
+      else
+      {
+        rv = EXIT_FAILURE;
+        rm = "Wrong sampling rate\n";
+      }
+    }
+
+    if(!rv) { 
+      if (generate_iir_bandpass(fs, 24500.0, 25500.0, 1, 80.0, MAX_TAPS, &filter) != 0) {
+        fprintf(stderr, "Filter creation failed.\n");
+        rv = EXIT_FAILURE;
+        rm = "Bad IIR coeffs\n";
+      }
+    }
+
+    if(!rv) {
+     //test for filter
+     //generate_filtered_noise(data, n_samples, fs, &filter);
+     generate_sinusoid(data,n_samples,1.0, 1.0,-25000.0, fs);
+     generate_sinusoid(data,n_samples,1.0, 1.0,6800.0, fs);
+     generate_sinusoid(data,n_samples,1.0, 1.0,25000.0, fs);
+
+      //filter_data_zero_phase(data, n_samples, &filter);
+      plot_data(data, n_samples);
+      plot_fft_db(data, n_samples);
+      plot_xy(data, n_samples);
+    }
+
+    printf("return value = %d, reason: %s\n", rv, rm);
+    return rv;
+}
+
